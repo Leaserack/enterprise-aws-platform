@@ -1,0 +1,34 @@
+name: AWS Authentication Test
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  aws-auth:
+    name: Authenticate to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: arn:aws:iam::381549359906:role/GitHubActionsTerraformRole
+          aws-region: us-east-1
+          allowed-account-ids: 381549359906
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Verify AWS region
+        run: |
+          aws configure get region
