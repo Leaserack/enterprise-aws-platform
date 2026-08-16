@@ -1,4 +1,4 @@
-name: Terraform DEV OIDC Diagnostic
+name: Terraform DEV Apply
 
 on:
   workflow_dispatch:
@@ -7,24 +7,236 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "381549359906"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
 jobs:
-  oidc-debug:
-    name: DEV OIDC Debug
+  terraform-dev:
+    name: Deploy DEV VPC
     runs-on: ubuntu-latest
 
-    steps:
-      - name: GitHub context
-        run: |
-          echo "Repository    : ${GITHUB_REPOSITORY}"
-          echo "Repository ID : ${GITHUB_REPOSITORY_ID}"
-          echo "Owner         : ${GITHUB_REPOSITORY_OWNER}"
-          echo "Owner ID      : ${GITHUB_REPOSITORY_OWNER_ID}"
-          echo "Ref           : ${GITHUB_REF}"
-          echo "Branch        : ${GITHUB_REF_NAME}"
-          echo "Event         : ${GITHUB_EVENT_NAME}"
-          echo "Workflow      : ${GITHUB_WORKFLOW}"
+    defaults:
+      run:
+        working-directory: environments/dev
 
-      - name: Debug GitHub OIDC claims
-        uses: github/actions-oidc-debugger@main
+    steps:
+
+      # --------------------------------------------------
+      # Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # --------------------------------------------------
+      # GitHub OIDC Diagnostics
+      # Same pattern as working AWS Authentication Test
+      # --------------------------------------------------
+      - name: GitHub OIDC Diagnostics
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          OWNER_ID: ${{ github.repository_owner_id }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          echo "Repository    : $REPOSITORY"
+          echo "Repository ID : $REPOSITORY_ID"
+          echo "Owner ID      : $OWNER_ID"
+          echo "Ref           : $REF"
+          echo "Branch        : $REF_NAME"
+
+      # --------------------------------------------------
+      # AWS Authentication
+      # EXACT SAME ROLE AND ACTION AS WORKING WORKFLOW
+      # --------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
-          audience: sts.amazonaws.com
+          role-to-assume: arn:aws:iam::381549359906:role/GitHubActionsTerraformRole
+          aws-region: us-east-1
+          allowed-account-ids: 381549359906
+
+      # --------------------------------------------------
+      # Verify AWS identity
+      # --------------------------------------------------
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      # --------------------------------------------------
+      # Verify AWS region
+      # --------------------------------------------------
+      - name: Verify AWS region
+        shell: bash
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
+
+          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_REGION=us-east-1"
+            exit 1
+          fi
+
+          if [[ "${AWS_DEFAULT_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_DEFAULT_REGION=us-east-1"
+            exit 1
+          fi
+
+          echo "AWS region verification passed."
+
+      # --------------------------------------------------
+      # Verify AWS account
+      # --------------------------------------------------
+      - name: Verify AWS account
+        shell: bash
+        run: |
+          ACCOUNT_ID="$(aws sts get-caller-identity \
+            --query Account \
+            --output text)"
+
+          echo "Detected AWS Account: ${ACCOUNT_ID}"
+
+          if [[ "${ACCOUNT_ID}" != "${AWS_ACCOUNT_ID}" ]]; then
+            echo "ERROR: Wrong AWS account."
+            echo "Expected: ${AWS_ACCOUNT_ID}"
+            echo "Actual:   ${ACCOUNT_ID}"
+            exit 1
+          fi
+
+          echo "AWS account verification passed."
+
+      # --------------------------------------------------
+      # Setup Terraform
+      # --------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      # --------------------------------------------------
+      # Verify Terraform version
+      # --------------------------------------------------
+      - name: Verify Terraform version
+        shell: bash
+        run: |
+          terraform version
+
+          TF_VERSION="$(terraform version -json | jq -r '.terraform_version')"
+
+          echo "Detected Terraform version: ${TF_VERSION}"
+
+          if [[ "${TF_VERSION}" != "1.15.8" ]]; then
+            echo "ERROR: Expected Terraform 1.15.8 but found ${TF_VERSION}"
+            exit 1
+          fi
+
+          echo "Terraform version verification passed."
+
+      # --------------------------------------------------
+      # Terraform format
+      # --------------------------------------------------
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      # --------------------------------------------------
+      # Terraform init
+      # --------------------------------------------------
+      - name: Terraform init
+        run: terraform init -upgrade=false
+
+      # --------------------------------------------------
+      # Terraform validate
+      # --------------------------------------------------
+      - name: Terraform validate
+        run: terraform validate
+
+      # --------------------------------------------------
+      # Terraform plan
+      # --------------------------------------------------
+      - name: Terraform plan
+        run: |
+          terraform plan \
+            -input=false \
+            -out=tfplan
+
+      # --------------------------------------------------
+      # Show plan
+      # --------------------------------------------------
+      - name: Show Terraform plan
+        run: |
+          terraform show -no-color tfplan
+
+      # --------------------------------------------------
+      # Terraform apply
+      # --------------------------------------------------
+      - name: Terraform apply
+        run: |
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            tfplan
+
+      # --------------------------------------------------
+      # Terraform outputs
+      # --------------------------------------------------
+      - name: Terraform outputs
+        run: |
+          terraform output
+
+      # --------------------------------------------------
+      # Verify DEV VPC
+      # --------------------------------------------------
+      - name: Verify DEV VPC
+        shell: bash
+        run: |
+          echo "Checking DEV VPC..."
+
+          aws ec2 describe-vpcs \
+            --region us-east-1 \
+            --filters "Name=tag:Name,Values=lr-saas-dev-vpc" \
+            --query 'Vpcs[].{
+              VpcId:VpcId,
+              Cidr:CidrBlock,
+              State:State
+            }' \
+            --output table
+
+      # --------------------------------------------------
+      # Verify DEV subnets
+      # --------------------------------------------------
+      - name: Verify DEV subnets
+        shell: bash
+        run: |
+          echo "Checking DEV subnets..."
+
+          aws ec2 describe-subnets \
+            --region us-east-1 \
+            --filters "Name=tag:Environment,Values=dev" \
+            --query 'Subnets[].{
+              SubnetId:SubnetId,
+              CIDR:CidrBlock,
+              AZ:AvailabilityZone,
+              Name:Tags[?Key==`Name`].Value|[0]
+            }' \
+            --output table
+
+      # --------------------------------------------------
+      # Verify Terraform state
+      # --------------------------------------------------
+      - name: Verify Terraform state
+        shell: bash
+        run: |
+          aws s3api head-object \
+            --bucket leaserack-enterprise-aws-platform-tfstate-381549359906 \
+            --key dev/terraform.tfstate \
+            --region us-east-1
+
+          echo "Terraform DEV state exists."
