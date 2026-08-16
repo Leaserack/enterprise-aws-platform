@@ -1,0 +1,31 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+*.tfplan.*
+*.tfstate.backup
+
+# Terraform variable files containing secrets
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Keep intentional non-secret tfvars files tracked
+!terraform.tfvars
+
+# Terraform lock file must be committed
+!.terraform.lock.hcl
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
