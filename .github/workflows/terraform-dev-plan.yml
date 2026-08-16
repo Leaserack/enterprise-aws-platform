@@ -1,18 +1,21 @@
-name: Terraform DEV Plan
+name: Terraform DEV Apply
 
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths:
       - "environments/dev/**"
       - "modules/vpc/**"
-      - ".github/workflows/terraform-dev-plan.yml"
+      - ".github/workflows/terraform-dev-apply.yml"
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
+
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
@@ -20,76 +23,98 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
-  terraform-plan:
-    name: Terraform DEV Plan
+  terraform-dev:
+    name: Deploy DEV VPC
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+    defaults:
+      run:
+        working-directory: environments/dev
 
-      - name: GitHub OIDC context
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.1.0
+
+      - name: GitHub context
+        shell: bash
         run: |
-          echo "Repository : $GITHUB_REPOSITORY"
-          echo "Ref        : $GITHUB_REF"
-          echo "Branch     : $GITHUB_REF_NAME"
-          echo "Event      : $GITHUB_EVENT_NAME"
-          echo "Actor      : $GITHUB_ACTOR"
+          echo "Repository : ${GITHUB_REPOSITORY}"
+          echo "Repository ID : ${GITHUB_REPOSITORY_ID}"
+          echo "Ref : ${GITHUB_REF}"
+          echo "Branch : ${GITHUB_REF_NAME}"
+          echo "Event : ${GITHUB_EVENT_NAME}"
+          echo "Actor : ${GITHUB_ACTOR}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: arn:aws:iam::381549359906:role/GitHubActionsTerraformRole
           aws-region: us-east-1
-          allowed-account-ids: "381549359906"
+          allowed-account-ids: 381549359906
 
       - name: Verify AWS identity
+        shell: bash
         run: |
           aws sts get-caller-identity
 
+      - name: Verify AWS region
+        shell: bash
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
+
+          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_REGION=us-east-1"
+            exit 1
+          fi
+
+          if [[ "${AWS_DEFAULT_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_DEFAULT_REGION=us-east-1"
+            exit 1
+          fi
+
+          echo "AWS region verification passed."
+
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@v4.0.1
         with:
           terraform_version: 1.15.8
           terraform_wrapper: false
 
-      - name: Terraform version
-        working-directory: environments/dev
+      - name: Verify Terraform version
+        shell: bash
         run: |
           terraform version
 
+          TF_VERSION="$(terraform version -json | jq -r '.terraform_version')"
+
+          echo "Detected Terraform version: ${TF_VERSION}"
+
+          if [[ "${TF_VERSION}" != "1.15.8" ]]; then
+            echo "ERROR: Expected Terraform 1.15.8 but found ${TF_VERSION}"
+            exit 1
+          fi
+
+          echo "Terraform version verification passed."
+
       - name: Terraform format check
-        working-directory: environments/dev
-        run: |
-          terraform fmt -check -recursive
+        run: terraform fmt -check -recursive
 
       - name: Terraform init
-        working-directory: environments/dev
-        run: |
-          terraform init \
-            -input=false \
-            -reconfigure
+        run: terraform init -upgrade=false
 
       - name: Terraform validate
-        working-directory: environments/dev
-        run: |
-          terraform validate
+        run: terraform validate
 
       - name: Terraform plan
-        working-directory: environments/dev
-        run: |
-          terraform plan \
-            -input=false \
-            -out=tfplan
+        run: terraform plan -input=false -out=tfplan
 
       - name: Show Terraform plan
-        working-directory: environments/dev
-        run: |
-          terraform show -no-color tfplan
+        run: terraform show -no-color tfplan
+
+      - name: Terraform apply
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Terraform outputs
+        run: terraform output
