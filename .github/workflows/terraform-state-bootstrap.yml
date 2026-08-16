@@ -62,8 +62,22 @@ jobs:
         run: aws sts get-caller-identity
 
       - name: Verify AWS region
-        run: aws configure get region
+        shell: bash
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
 
+          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_REGION=us-east-1"
+            exit 1
+          fi
+
+          if [[ "${AWS_DEFAULT_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_DEFAULT_REGION=us-east-1"
+            exit 1
+          fi
+
+          echo "AWS region verification passed."
       - name: Terraform format check
         run: terraform fmt -check -recursive
 
