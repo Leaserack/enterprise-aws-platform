@@ -1,10 +1,16 @@
-# AWS VPC Module
+# LR SaaS VPC Module
 
-Reusable VPC module for the LR SaaS AWS platform.
+Reusable AWS VPC module for the LR SaaS platform.
 
-## Module naming
+## Module Version
 
-Resources use the following convention:
+Current release:
+
+`vpc-v1.1.0`
+
+## Naming
+
+All resources follow:
 
 `<name_prefix>-<environment>-<resource>`
 
@@ -12,28 +18,28 @@ Example:
 
 `lr-saas-dev-vpc`
 
-## Supported environments
+## Architecture
 
-- dev
-- stage
-- prod
+The module supports:
 
-## Inputs
+- VPC
+- Internet Gateway
+- Public subnets
+- Private subnets
+- Public route table
+- Private route tables
+- NAT Gateway
+- Elastic IPs
+- S3 Gateway VPC endpoint
+- DynamoDB Gateway VPC endpoint
+- DNS support
+- DNS hostnames
 
-| Variable | Type | Required |
-|---|---|---|
-| name_prefix | string | yes |
-| environment | string | yes |
-| vpc_cidr | string | yes |
-| availability_zones | list(string) | yes |
-| public_subnet_cidrs | list(string) | yes |
-| private_subnet_cidrs | list(string) | yes |
-| enable_nat_gateway | bool | no |
-| single_nat_gateway | bool | no |
+## Multi-AZ Design
 
-## Outputs
+The module supports multiple Availability Zones.
 
-- vpc_id
-- vpc_arn
-- vpc_cidr
-- vpc_name
+Production should normally use:
+
+```hcl
+single_nat_gateway = false
