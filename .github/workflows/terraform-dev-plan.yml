@@ -29,14 +29,24 @@ jobs:
     steps:
 
       # --------------------------------------------------
-      # Checkout
+      # Checkout repository
       # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
       # --------------------------------------------------
+      # Configure Git authentication
+      # Required for private Terraform Git modules
+      # --------------------------------------------------
+      - name: Configure Git authentication
+        shell: bash
+        run: |
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # --------------------------------------------------
       # GitHub OIDC Diagnostics
-      # Same pattern as working AWS Authentication Test
       # --------------------------------------------------
       - name: GitHub OIDC Diagnostics
         env:
@@ -53,8 +63,7 @@ jobs:
           echo "Branch        : $REF_NAME"
 
       # --------------------------------------------------
-      # AWS Authentication
-      # EXACT SAME ROLE AND ACTION AS WORKING WORKFLOW
+      # AWS OIDC Authentication
       # --------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
@@ -147,13 +156,13 @@ jobs:
         run: terraform fmt -check -recursive
 
       # --------------------------------------------------
-      # Terraform init
+      # Terraform initialization
       # --------------------------------------------------
       - name: Terraform init
         run: terraform init -upgrade=false
 
       # --------------------------------------------------
-      # Terraform validate
+      # Terraform validation
       # --------------------------------------------------
       - name: Terraform validate
         run: terraform validate
