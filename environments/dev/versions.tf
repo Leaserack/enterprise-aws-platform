@@ -3,7 +3,7 @@ terraform {
 
   backend "s3" {
     bucket       = "leaserack-enterprise-aws-platform-tfstate-381549359906"
-    key          = "bootstrap/terraform.tfstate"
+    key          = "dev/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
     encrypt      = true
