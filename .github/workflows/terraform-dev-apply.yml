@@ -1,4 +1,4 @@
-name: Terraform DEV Apply
+name: Enterprise Platform DEV - Create Infrastructure
 
 on:
   workflow_dispatch:
