@@ -44,11 +44,19 @@ module "iam" {
 # KMS
 # ============================================================
 
+# ============================================================
+# KMS
+# ============================================================
+
 module "kms" {
   source = "../../modules/kms"
 
   name_prefix = var.name_prefix
   environment = var.environment
+
+  purpose = "enterprise-platform"
+
+  description = "Customer-managed KMS key for DEV enterprise AWS platform encryption."
 
   tags = local.common_tags
 }
