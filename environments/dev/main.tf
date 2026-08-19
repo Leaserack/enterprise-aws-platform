@@ -104,6 +104,22 @@ module "s3" {
   project_name = var.project_name
   environment  = var.environment
 
+  bucket_purpose = "appdata"
+
+  kms_key_arn = module.kms.key_arn
+
+  enable_versioning = true
+
+  object_lock_enabled = false
+  object_lock_mode    = "GOVERNANCE"
+  object_lock_days    = 30
+
+  noncurrent_version_expiration_days = 90
+
+  abort_incomplete_multipart_upload_days = 7
+
+  prevent_destroy = false
+
   tags = local.common_tags
 
   depends_on = [
