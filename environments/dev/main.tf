@@ -78,7 +78,7 @@ module "eks" {
   source = "../../modules/eks"
 
   project_name = var.project_name
-  environment = var.environment
+  environment  = var.environment
 
   cluster_name       = var.eks_cluster_name
   kubernetes_version = var.eks_kubernetes_version
@@ -195,7 +195,7 @@ module "eks_addons" {
   project_name = var.project_name
   environment  = var.environment
 
-  cluster_name = module.eks.cluster_name
+  cluster_name    = module.eks.cluster_name
   cluster_version = var.eks_kubernetes_version
 
   # ----------------------------------------------------------
