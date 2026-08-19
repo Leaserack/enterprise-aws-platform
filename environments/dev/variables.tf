@@ -44,6 +44,29 @@ variable "availability_zones" {
   ]
 }
 
+
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs for the DEV VPC."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == length(var.availability_zones)
+    error_message = "public_subnet_cidrs must contain exactly one CIDR per Availability Zone."
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = "Private subnet CIDRs for the DEV VPC."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == length(var.availability_zones)
+    error_message = "private_subnet_cidrs must contain exactly one CIDR per Availability Zone."
+  }
+}
+
+
+
 variable "eks_cluster_name" {
   description = "EKS cluster name."
   type        = string
