@@ -1,4 +1,4 @@
-name: Terraform DEV Apply
+name: Terraform DEV Destroy
 
 on:
   workflow_dispatch:
@@ -18,8 +18,8 @@ env:
   TF_INPUT: "false"
 
 jobs:
-  terraform-dev:
-    name: Deploy DEV VPC
+  terraform-destroy:
+    name: Destroy DEV Infrastructure
     runs-on: ubuntu-latest
 
     defaults:
@@ -36,7 +36,7 @@ jobs:
 
       # --------------------------------------------------
       # Configure Git authentication
-      # Required for private Terraform Git modules
+      # Required for private Terraform modules
       # --------------------------------------------------
       - name: Configure Git authentication
         shell: bash
@@ -46,7 +46,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       # --------------------------------------------------
-      # GitHub OIDC Diagnostics
+      # GitHub OIDC diagnostics
       # --------------------------------------------------
       - name: GitHub OIDC Diagnostics
         env:
@@ -63,7 +63,8 @@ jobs:
           echo "Branch        : $REF_NAME"
 
       # --------------------------------------------------
-      # AWS OIDC Authentication
+      # AWS OIDC authentication
+      # Same working role as DEV Apply
       # --------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
@@ -76,29 +77,9 @@ jobs:
       # Verify AWS identity
       # --------------------------------------------------
       - name: Verify AWS identity
-        run: |
-          aws sts get-caller-identity
-
-      # --------------------------------------------------
-      # Verify AWS region
-      # --------------------------------------------------
-      - name: Verify AWS region
         shell: bash
         run: |
-          echo "AWS_REGION=${AWS_REGION}"
-          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
-
-          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
-            echo "ERROR: Expected AWS_REGION=us-east-1"
-            exit 1
-          fi
-
-          if [[ "${AWS_DEFAULT_REGION}" != "us-east-1" ]]; then
-            echo "ERROR: Expected AWS_DEFAULT_REGION=us-east-1"
-            exit 1
-          fi
-
-          echo "AWS region verification passed."
+          aws sts get-caller-identity
 
       # --------------------------------------------------
       # Verify AWS account
@@ -122,6 +103,22 @@ jobs:
           echo "AWS account verification passed."
 
       # --------------------------------------------------
+      # Verify AWS region
+      # --------------------------------------------------
+      - name: Verify AWS region
+        shell: bash
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
+
+          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_REGION=us-east-1"
+            exit 1
+          fi
+
+          echo "AWS region verification passed."
+
+      # --------------------------------------------------
       # Setup Terraform
       # --------------------------------------------------
       - name: Setup Terraform
@@ -131,7 +128,7 @@ jobs:
           terraform_wrapper: false
 
       # --------------------------------------------------
-      # Verify Terraform version
+      # Verify Terraform
       # --------------------------------------------------
       - name: Verify Terraform version
         shell: bash
@@ -150,92 +147,64 @@ jobs:
           echo "Terraform version verification passed."
 
       # --------------------------------------------------
-      # Terraform format
-      # --------------------------------------------------
-      - name: Terraform format check
-        run: terraform fmt -check -recursive
-
-      # --------------------------------------------------
-      # Terraform initialization
+      # Terraform init
       # --------------------------------------------------
       - name: Terraform init
         run: terraform init -upgrade=false
 
       # --------------------------------------------------
-      # Terraform validation
+      # Terraform validate
       # --------------------------------------------------
       - name: Terraform validate
         run: terraform validate
 
       # --------------------------------------------------
-      # Terraform plan
+      # Terraform destroy plan
       # --------------------------------------------------
-      - name: Terraform plan
+      - name: Terraform destroy plan
         run: |
           terraform plan \
+            -destroy \
             -input=false \
-            -out=tfplan
+            -out=destroy.tfplan
 
       # --------------------------------------------------
-      # Show plan
+      # Show destroy plan
       # --------------------------------------------------
-      - name: Show Terraform plan
+      - name: Show destroy plan
         run: |
-          terraform show -no-color tfplan
+          terraform show -no-color destroy.tfplan
 
       # --------------------------------------------------
-      # Terraform apply
+      # Terraform destroy
       # --------------------------------------------------
-      - name: Terraform apply
+      - name: Terraform destroy
         run: |
           terraform apply \
             -input=false \
             -auto-approve \
-            tfplan
+            destroy.tfplan
 
       # --------------------------------------------------
-      # Terraform outputs
+      # Verify DEV VPC no longer exists
       # --------------------------------------------------
-      - name: Terraform outputs
-        run: |
-          terraform output
-
-      # --------------------------------------------------
-      # Verify DEV VPC
-      # --------------------------------------------------
-      - name: Verify DEV VPC
+      - name: Verify DEV VPC destroyed
         shell: bash
         run: |
-          echo "Checking DEV VPC..."
-
-          aws ec2 describe-vpcs \
+          VPC_COUNT="$(aws ec2 describe-vpcs \
             --region us-east-1 \
             --filters "Name=tag:Name,Values=lr-saas-dev-vpc" \
-            --query 'Vpcs[].{
-              VpcId:VpcId,
-              Cidr:CidrBlock,
-              State:State
-            }' \
-            --output table
+            --query 'length(Vpcs)' \
+            --output text)"
 
-      # --------------------------------------------------
-      # Verify DEV subnets
-      # --------------------------------------------------
-      - name: Verify DEV subnets
-        shell: bash
-        run: |
-          echo "Checking DEV subnets..."
+          echo "DEV VPC count: ${VPC_COUNT}"
 
-          aws ec2 describe-subnets \
-            --region us-east-1 \
-            --filters "Name=tag:Environment,Values=dev" \
-            --query 'Subnets[].{
-              SubnetId:SubnetId,
-              CIDR:CidrBlock,
-              AZ:AvailabilityZone,
-              Name:Tags[?Key==`Name`].Value|[0]
-            }' \
-            --output table
+          if [[ "${VPC_COUNT}" != "0" ]]; then
+            echo "ERROR: DEV VPC still exists."
+            exit 1
+          fi
+
+          echo "DEV VPC successfully destroyed."
 
       # --------------------------------------------------
       # Verify Terraform state
@@ -243,9 +212,12 @@ jobs:
       - name: Verify Terraform state
         shell: bash
         run: |
+          echo "Checking Terraform state object..."
+
           aws s3api head-object \
             --bucket leaserack-enterprise-aws-platform-tfstate-381549359906 \
             --key dev/terraform.tfstate \
             --region us-east-1
 
-          echo "Terraform DEV state exists."
+          echo "Terraform state object still exists."
+          echo "This is expected. The state backend itself is NOT destroyed."
