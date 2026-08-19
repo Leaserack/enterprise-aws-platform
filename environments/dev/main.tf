@@ -11,7 +11,16 @@ module "vpc" {
   vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
 
-  tags = local.common_tags
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
+
+  enable_nat_gateway       = true
+  single_nat_gateway       = true
+  enable_s3_endpoint       = true
+  enable_dynamodb_endpoint = true
+
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 }
 
 # ============================================================
@@ -51,10 +60,29 @@ module "kms" {
 module "ecr" {
   source = "../../modules/ecr"
 
-  name_prefix = var.name_prefix
-  environment = var.environment
+  name_prefix  = var.name_prefix
+  project_name = var.project_name
+  environment  = var.environment
+
+  repository_name = "app"
+
+  kms_key_arn = module.kms.key_arn
+
+  image_tag_mutability = "IMMUTABLE"
+  scan_on_push         = true
+
+  # Do not delete repositories containing images.
+  force_delete = false
+
+  # Image retention.
+  untagged_image_expiration_days = 7
+  tagged_image_retention_count   = 30
 
   tags = local.common_tags
+
+  depends_on = [
+    module.kms
+  ]
 }
 
 # ============================================================
@@ -64,10 +92,15 @@ module "ecr" {
 module "s3" {
   source = "../../modules/s3"
 
-  name_prefix = var.name_prefix
-  environment = var.environment
+  name_prefix  = var.name_prefix
+  project_name = var.project_name
+  environment  = var.environment
 
   tags = local.common_tags
+
+  depends_on = [
+    module.kms
+  ]
 }
 
 # ============================================================
@@ -106,7 +139,7 @@ module "eks" {
   authentication_mode = "API"
 
   # ----------------------------------------------------------
-  # Control-plane logging
+  # Control plane logging
   # ----------------------------------------------------------
 
   enabled_cluster_log_types = [
@@ -199,10 +232,11 @@ module "eks_addons" {
   cluster_version = var.eks_kubernetes_version
 
   # ----------------------------------------------------------
-  # Add-on versions
+  # AWS-managed add-on versions
   #
-  # null = AWS-compatible default for the cluster version.
-  # We will pin tested versions after initial deployment.
+  # null allows the compatible AWS default version.
+  # We will pin tested versions after the first successful
+  # cluster deployment.
   # ----------------------------------------------------------
 
   vpc_cni_version    = null
@@ -218,10 +252,8 @@ module "eks_addons" {
   resolve_conflicts_on_update = "OVERWRITE"
 
   # ----------------------------------------------------------
-  # Workload identity
-  #
-  # Pod Identity / dedicated add-on roles will be hardened
-  # in the next platform phase.
+  # Dedicated add-on IAM roles will be added in the
+  # Pod Identity/IAM hardening phase.
   # ----------------------------------------------------------
 
   service_account_role_arns = {}
