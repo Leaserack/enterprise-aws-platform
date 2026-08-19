@@ -18,8 +18,8 @@ env:
   TF_INPUT: "false"
 
 jobs:
-  terraform-apply:
-    name: Deploy DEV Infrastructure
+  terraform-dev:
+    name: Deploy DEV Platform
     runs-on: ubuntu-latest
 
     defaults:
@@ -28,16 +28,9 @@ jobs:
 
     steps:
 
-      # --------------------------------------------------
-      # Checkout repository
-      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # --------------------------------------------------
-      # Configure Git authentication
-      # Required for private Terraform modules
-      # --------------------------------------------------
       - name: Configure Git authentication
         shell: bash
         run: |
@@ -45,9 +38,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      # --------------------------------------------------
-      # GitHub OIDC diagnostics
-      # --------------------------------------------------
       - name: GitHub OIDC Diagnostics
         env:
           REPOSITORY: ${{ github.repository }}
@@ -62,9 +52,6 @@ jobs:
           echo "Ref           : $REF"
           echo "Branch        : $REF_NAME"
 
-      # --------------------------------------------------
-      # AWS OIDC authentication
-      # --------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
@@ -72,17 +59,29 @@ jobs:
           aws-region: us-east-1
           allowed-account-ids: 381549359906
 
-      # --------------------------------------------------
-      # Verify AWS identity
-      # --------------------------------------------------
       - name: Verify AWS identity
         shell: bash
         run: |
           aws sts get-caller-identity
 
-      # --------------------------------------------------
-      # Verify AWS account
-      # --------------------------------------------------
+      - name: Verify AWS region
+        shell: bash
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
+
+          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_REGION=us-east-1"
+            exit 1
+          fi
+
+          if [[ "${AWS_DEFAULT_REGION}" != "us-east-1" ]]; then
+            echo "ERROR: Expected AWS_DEFAULT_REGION=us-east-1"
+            exit 1
+          fi
+
+          echo "AWS region verification passed."
+
       - name: Verify AWS account
         shell: bash
         run: |
@@ -101,34 +100,12 @@ jobs:
 
           echo "AWS account verification passed."
 
-      # --------------------------------------------------
-      # Verify AWS region
-      # --------------------------------------------------
-      - name: Verify AWS region
-        shell: bash
-        run: |
-          echo "AWS_REGION=${AWS_REGION}"
-          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
-
-          if [[ "${AWS_REGION}" != "us-east-1" ]]; then
-            echo "ERROR: Expected AWS_REGION=us-east-1"
-            exit 1
-          fi
-
-          echo "AWS region verification passed."
-
-      # --------------------------------------------------
-      # Setup Terraform
-      # --------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4.0.1
         with:
           terraform_version: 1.15.8
           terraform_wrapper: false
 
-      # --------------------------------------------------
-      # Verify Terraform
-      # --------------------------------------------------
       - name: Verify Terraform version
         shell: bash
         run: |
@@ -145,45 +122,25 @@ jobs:
 
           echo "Terraform version verification passed."
 
-      # --------------------------------------------------
-      # Terraform init
-      # --------------------------------------------------
-      - name: Terraform init
-        run: terraform init -upgrade=false
-
-      # --------------------------------------------------
-      # Terraform format check
-      # --------------------------------------------------
       - name: Terraform format check
         run: terraform fmt -check -recursive
 
-      # --------------------------------------------------
-      # Terraform validate
-      # --------------------------------------------------
+      - name: Terraform init
+        run: terraform init -upgrade=false
+
       - name: Terraform validate
         run: terraform validate
 
-      # --------------------------------------------------
-      # Terraform plan
-      # --------------------------------------------------
       - name: Terraform plan
         run: |
           terraform plan \
             -input=false \
             -out=tfplan
 
-      # --------------------------------------------------
-      # Show Terraform plan
-      # --------------------------------------------------
-      - name: Show Terraform plan
+      - name: Show plan
         run: |
-          terraform show \
-            -no-color \
-            tfplan
+          terraform show -no-color tfplan
 
-      # --------------------------------------------------
-      # Terraform apply
-      # --------------------------------------------------
       - name: Terraform apply
         run: |
           terraform apply \
@@ -191,17 +148,47 @@ jobs:
             -auto-approve \
             tfplan
 
-      # --------------------------------------------------
-      # Verify Terraform state
-      # --------------------------------------------------
+      - name: Terraform outputs
+        run: |
+          terraform output
+
+      - name: Verify DEV VPC
+        shell: bash
+        run: |
+          echo "Checking DEV VPC..."
+
+          aws ec2 describe-vpcs \
+            --region us-east-1 \
+            --filters "Name=tag:Name,Values=lr-saas-dev-vpc" \
+            --query 'Vpcs[].{
+              VpcId:VpcId,
+              Cidr:CidrBlock,
+              State:State
+            }' \
+            --output table
+
+      - name: Verify DEV subnets
+        shell: bash
+        run: |
+          echo "Checking DEV subnets..."
+
+          aws ec2 describe-subnets \
+            --region us-east-1 \
+            --filters "Name=tag:Environment,Values=dev" \
+            --query 'Subnets[].{
+              SubnetId:SubnetId,
+              CIDR:CidrBlock,
+              AZ:AvailabilityZone,
+              Name:Tags[?Key==`Name`].Value|[0]
+            }' \
+            --output table
+
       - name: Verify Terraform state
         shell: bash
         run: |
-          echo "Checking Terraform state object..."
-
           aws s3api head-object \
             --bucket leaserack-enterprise-aws-platform-tfstate-381549359906 \
             --key dev/terraform.tfstate \
             --region us-east-1
 
-          echo "Terraform state object exists."
+          echo "Terraform DEV state exists."
