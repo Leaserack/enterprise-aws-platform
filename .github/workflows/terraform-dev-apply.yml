@@ -1,4 +1,4 @@
-name: Terraform DEV Destroy
+name: Terraform DEV Apply
 
 on:
   workflow_dispatch:
@@ -18,8 +18,8 @@ env:
   TF_INPUT: "false"
 
 jobs:
-  terraform-destroy:
-    name: Destroy DEV Infrastructure
+  terraform-apply:
+    name: Deploy DEV Infrastructure
     runs-on: ubuntu-latest
 
     defaults:
@@ -28,9 +28,16 @@ jobs:
 
     steps:
 
+      # --------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # --------------------------------------------------
+      # Configure Git authentication
+      # Required for private Terraform modules
+      # --------------------------------------------------
       - name: Configure Git authentication
         shell: bash
         run: |
@@ -38,6 +45,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      # --------------------------------------------------
+      # GitHub OIDC diagnostics
+      # --------------------------------------------------
       - name: GitHub OIDC Diagnostics
         env:
           REPOSITORY: ${{ github.repository }}
@@ -52,6 +62,9 @@ jobs:
           echo "Ref           : $REF"
           echo "Branch        : $REF_NAME"
 
+      # --------------------------------------------------
+      # AWS OIDC authentication
+      # --------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
@@ -59,11 +72,17 @@ jobs:
           aws-region: us-east-1
           allowed-account-ids: 381549359906
 
+      # --------------------------------------------------
+      # Verify AWS identity
+      # --------------------------------------------------
       - name: Verify AWS identity
         shell: bash
         run: |
           aws sts get-caller-identity
 
+      # --------------------------------------------------
+      # Verify AWS account
+      # --------------------------------------------------
       - name: Verify AWS account
         shell: bash
         run: |
@@ -82,9 +101,15 @@ jobs:
 
           echo "AWS account verification passed."
 
+      # --------------------------------------------------
+      # Verify AWS region
+      # --------------------------------------------------
       - name: Verify AWS region
         shell: bash
         run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
+
           if [[ "${AWS_REGION}" != "us-east-1" ]]; then
             echo "ERROR: Expected AWS_REGION=us-east-1"
             exit 1
@@ -92,18 +117,26 @@ jobs:
 
           echo "AWS region verification passed."
 
+      # --------------------------------------------------
+      # Setup Terraform
+      # --------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4.0.1
         with:
           terraform_version: 1.15.8
           terraform_wrapper: false
 
+      # --------------------------------------------------
+      # Verify Terraform
+      # --------------------------------------------------
       - name: Verify Terraform version
         shell: bash
         run: |
           terraform version
 
           TF_VERSION="$(terraform version -json | jq -r '.terraform_version')"
+
+          echo "Detected Terraform version: ${TF_VERSION}"
 
           if [[ "${TF_VERSION}" != "1.15.8" ]]; then
             echo "ERROR: Expected Terraform 1.15.8 but found ${TF_VERSION}"
@@ -112,35 +145,55 @@ jobs:
 
           echo "Terraform version verification passed."
 
+      # --------------------------------------------------
+      # Terraform init
+      # --------------------------------------------------
       - name: Terraform init
         run: terraform init -upgrade=false
 
+      # --------------------------------------------------
+      # Terraform format check
+      # --------------------------------------------------
       - name: Terraform format check
         run: terraform fmt -check -recursive
 
+      # --------------------------------------------------
+      # Terraform validate
+      # --------------------------------------------------
       - name: Terraform validate
         run: terraform validate
 
-      - name: Terraform destroy plan
+      # --------------------------------------------------
+      # Terraform plan
+      # --------------------------------------------------
+      - name: Terraform plan
         run: |
           terraform plan \
-            -destroy \
             -input=false \
-            -out=destroy.tfplan
+            -out=tfplan
 
-      - name: Show destroy plan
+      # --------------------------------------------------
+      # Show Terraform plan
+      # --------------------------------------------------
+      - name: Show Terraform plan
         run: |
           terraform show \
             -no-color \
-            destroy.tfplan
+            tfplan
 
-      - name: Terraform destroy
+      # --------------------------------------------------
+      # Terraform apply
+      # --------------------------------------------------
+      - name: Terraform apply
         run: |
           terraform apply \
             -input=false \
             -auto-approve \
-            destroy.tfplan
+            tfplan
 
+      # --------------------------------------------------
+      # Verify Terraform state
+      # --------------------------------------------------
       - name: Verify Terraform state
         shell: bash
         run: |
@@ -151,4 +204,4 @@ jobs:
             --key dev/terraform.tfstate \
             --region us-east-1
 
-          echo "Terraform state object still exists."
+          echo "Terraform state object exists."

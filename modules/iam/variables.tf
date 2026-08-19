@@ -30,6 +30,12 @@ variable "create_eks_node_role" {
   default     = false
 }
 
+variable "create_eks_cluster_role" {
+  description = "Whether to create the EKS control plane IAM role."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Additional tags for supported IAM resources."
   type        = map(string)

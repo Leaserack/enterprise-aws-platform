@@ -1,20 +1,19 @@
 variable "aws_region" {
   description = "AWS region for the DEV environment."
   type        = string
+  default     = "us-east-1"
+}
 
-  default = "us-east-1"
-
-  validation {
-    condition     = var.aws_region == "us-east-1"
-    error_message = "DEV must be deployed in us-east-1."
-  }
+variable "project_name" {
+  description = "Project name."
+  type        = string
+  default     = "lr-saas"
 }
 
 variable "environment" {
   description = "Deployment environment."
   type        = string
-
-  default = "dev"
+  default     = "dev"
 
   validation {
     condition     = var.environment == "dev"
@@ -23,29 +22,19 @@ variable "environment" {
 }
 
 variable "name_prefix" {
-  description = "Platform resource naming prefix."
+  description = "Resource naming prefix."
   type        = string
-
-  default = "lr-saas"
-
-  validation {
-    condition = (
-      can(regex("^[a-z0-9-]+$", var.name_prefix))
-    )
-
-    error_message = "name_prefix must contain only lowercase letters, numbers, and hyphens."
-  }
+  default     = "lr-saas"
 }
 
 variable "vpc_cidr" {
   description = "DEV VPC CIDR."
   type        = string
-
-  default = "10.10.0.0/16"
+  default     = "10.10.0.0/16"
 }
 
 variable "availability_zones" {
-  description = "DEV Availability Zones."
+  description = "Availability Zones for the DEV VPC."
   type        = list(string)
 
   default = [
@@ -55,52 +44,14 @@ variable "availability_zones" {
   ]
 }
 
-variable "public_subnet_cidrs" {
-  description = "DEV public subnet CIDRs."
-  type        = list(string)
-
-  default = [
-    "10.10.1.0/24",
-    "10.10.2.0/24",
-    "10.10.3.0/24"
-  ]
+variable "eks_cluster_name" {
+  description = "EKS cluster name."
+  type        = string
+  default     = "lr-saas-dev-eks"
 }
 
-variable "private_subnet_cidrs" {
-  description = "DEV private subnet CIDRs."
-  type        = list(string)
-
-  default = [
-    "10.10.11.0/24",
-    "10.10.12.0/24",
-    "10.10.13.0/24"
-  ]
-}
-
-variable "enable_nat_gateway" {
-  description = "Whether NAT Gateway should be created."
-  type        = bool
-
-  default = true
-}
-
-variable "single_nat_gateway" {
-  description = "Use one NAT Gateway for DEV to reduce cost."
-  type        = bool
-
-  default = true
-}
-
-variable "enable_s3_endpoint" {
-  description = "Enable S3 Gateway VPC endpoint."
-  type        = bool
-
-  default = true
-}
-
-variable "enable_dynamodb_endpoint" {
-  description = "Enable DynamoDB Gateway VPC endpoint."
-  type        = bool
-
-  default = true
+variable "eks_kubernetes_version" {
+  description = "Kubernetes version for EKS."
+  type        = string
+  default     = "1.33"
 }

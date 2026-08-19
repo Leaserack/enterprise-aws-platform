@@ -18,6 +18,24 @@ output "ec2_instance_profile_arn" {
   value       = try(aws_iam_instance_profile.ec2[0].arn, null)
 }
 
+# ============================================================
+# EKS CONTROL PLANE
+# ============================================================
+
+output "eks_cluster_role_name" {
+  description = "Name of the EKS control plane IAM role."
+  value       = try(aws_iam_role.eks_cluster[0].name, null)
+}
+
+output "eks_cluster_role_arn" {
+  description = "ARN of the EKS control plane IAM role."
+  value       = try(aws_iam_role.eks_cluster[0].arn, null)
+}
+
+# ============================================================
+# EKS MANAGED NODE GROUP
+# ============================================================
+
 output "eks_node_role_name" {
   description = "Name of the EKS managed node group IAM role."
   value       = try(aws_iam_role.eks_node[0].name, null)
