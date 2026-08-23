@@ -19,7 +19,11 @@ variable "environment" {
   type        = string
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
+    condition = contains(
+      ["dev", "staging", "prod"],
+      var.environment
+    )
+
     error_message = "environment must be dev, staging, or prod."
   }
 }
@@ -42,6 +46,17 @@ variable "node_group_name" {
 variable "node_role_arn" {
   description = "IAM role ARN used by the EKS managed node group."
   type        = string
+
+  validation {
+    condition = can(
+      regex(
+        "^arn:aws:iam::[0-9]{12}:role/.+$",
+        var.node_role_arn
+      )
+    )
+
+    error_message = "node_role_arn must be a valid IAM role ARN."
+  }
 }
 
 variable "subnet_ids" {
@@ -49,8 +64,15 @@ variable "subnet_ids" {
   type        = list(string)
 
   validation {
-    condition     = length(var.subnet_ids) >= 2
-    error_message = "At least two private subnets are required for the node group."
+    condition = (
+      length(var.subnet_ids) >= 2 &&
+      alltrue([
+        for subnet_id in var.subnet_ids :
+        can(regex("^subnet-[a-f0-9]+$", subnet_id))
+      ])
+    )
+
+    error_message = "At least two valid private subnet IDs are required."
   }
 }
 
@@ -69,7 +91,7 @@ variable "ami_type" {
       var.ami_type
     )
 
-    error_message = "Unsupported AMI type."
+    error_message = "Unsupported EKS managed node group AMI type."
   }
 }
 
@@ -79,7 +101,11 @@ variable "capacity_type" {
   default     = "ON_DEMAND"
 
   validation {
-    condition     = contains(["ON_DEMAND", "SPOT"], var.capacity_type)
+    condition = contains(
+      ["ON_DEMAND", "SPOT"],
+      var.capacity_type
+    )
+
     error_message = "capacity_type must be ON_DEMAND or SPOT."
   }
 }
@@ -90,8 +116,15 @@ variable "instance_types" {
   default     = ["m7i.large"]
 
   validation {
-    condition     = length(var.instance_types) > 0
-    error_message = "At least one instance type must be specified."
+    condition = (
+      length(var.instance_types) > 0 &&
+      alltrue([
+        for instance_type in var.instance_types :
+        length(instance_type) > 0
+      ])
+    )
+
+    error_message = "At least one EC2 instance type must be specified."
   }
 }
 
@@ -101,8 +134,12 @@ variable "disk_size" {
   default     = 50
 
   validation {
-    condition     = var.disk_size >= 20
-    error_message = "disk_size must be at least 20 GiB."
+    condition = (
+      var.disk_size >= 20 &&
+      var.disk_size <= 16384
+    )
+
+    error_message = "disk_size must be between 20 and 16384 GiB."
   }
 }
 
@@ -112,8 +149,8 @@ variable "desired_size" {
   default     = 3
 
   validation {
-    condition     = var.desired_size >= 2
-    error_message = "desired_size must be at least 2 for production-grade workloads."
+    condition     = var.desired_size >= 1
+    error_message = "desired_size must be at least 1."
   }
 }
 
@@ -123,8 +160,8 @@ variable "min_size" {
   default     = 3
 
   validation {
-    condition     = var.min_size >= 2
-    error_message = "min_size must be at least 2."
+    condition     = var.min_size >= 1
+    error_message = "min_size must be at least 1."
   }
 }
 
@@ -134,8 +171,8 @@ variable "max_size" {
   default     = 6
 
   validation {
-    condition     = var.max_size >= 3
-    error_message = "max_size must be at least 3."
+    condition     = var.max_size >= 1
+    error_message = "max_size must be at least 1."
   }
 }
 
@@ -163,12 +200,20 @@ variable "taints" {
     value  = string
     effect = string
   }))
+
   default = []
 
   validation {
     condition = alltrue([
       for taint in var.taints :
-      contains(["NO_SCHEDULE", "NO_EXECUTE", "PREFER_NO_SCHEDULE"], taint.effect)
+      contains(
+        [
+          "NO_SCHEDULE",
+          "NO_EXECUTE",
+          "PREFER_NO_SCHEDULE"
+        ],
+        taint.effect
+      )
     ])
 
     error_message = "Taint effect must be NO_SCHEDULE, NO_EXECUTE, or PREFER_NO_SCHEDULE."

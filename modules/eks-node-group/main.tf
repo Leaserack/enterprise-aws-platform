@@ -8,8 +8,7 @@ resource "aws_eks_node_group" "this" {
   ami_type       = var.ami_type
   capacity_type  = var.capacity_type
   instance_types = var.instance_types
-
-  disk_size = var.disk_size
+  disk_size      = var.disk_size
 
   scaling_config {
     desired_size = var.desired_size
@@ -51,7 +50,8 @@ resource "aws_eks_node_group" "this" {
     }
 
     precondition {
-      condition     = length(var.subnet_ids) >= 2
+      condition = length(var.subnet_ids) >= 2
+
       error_message = "The managed node group must span at least two subnets."
     }
   }

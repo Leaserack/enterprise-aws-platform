@@ -9,10 +9,8 @@ locals {
     var.tags
   )
 
-  ec2_role_name = "${var.name_prefix}-${var.environment}-ec2-role"
-
-  eks_node_role_name = "${var.name_prefix}-${var.environment}-eks-node-role"
-
+  ec2_role_name         = "${var.name_prefix}-${var.environment}-ec2-role"
+  eks_node_role_name    = "${var.name_prefix}-${var.environment}-eks-node-role"
   eks_cluster_role_name = "${var.name_prefix}-${var.environment}-eks-cluster-role"
 }
 
@@ -22,19 +20,13 @@ locals {
 
 data "aws_iam_policy_document" "ec2_assume_role" {
   statement {
-    sid    = "EC2AssumeRole"
-    effect = "Allow"
-
-    actions = [
-      "sts:AssumeRole"
-    ]
+    sid     = "EC2AssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
 
     principals {
-      type = "Service"
-
-      identifiers = [
-        "ec2.amazonaws.com"
-      ]
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
 }
@@ -42,11 +34,9 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 resource "aws_iam_role" "ec2" {
   count = var.create_ec2_role ? 1 : 0
 
-  name = local.ec2_role_name
-
+  name               = local.ec2_role_name
+  description        = "EC2 workload role for ${var.name_prefix}-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
-
-  description = "EC2 workload role for ${var.name_prefix}-${var.environment}"
 
   tags = local.common_tags
 
@@ -59,7 +49,6 @@ resource "aws_iam_instance_profile" "ec2" {
   count = var.create_ec2_role ? 1 : 0
 
   name = "${local.ec2_role_name}-profile"
-
   role = aws_iam_role.ec2[0].name
 
   tags = local.common_tags
@@ -71,19 +60,13 @@ resource "aws_iam_instance_profile" "ec2" {
 
 data "aws_iam_policy_document" "eks_cluster_assume_role" {
   statement {
-    sid    = "EKSClusterAssumeRole"
-    effect = "Allow"
-
-    actions = [
-      "sts:AssumeRole"
-    ]
+    sid     = "EKSClusterAssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
 
     principals {
-      type = "Service"
-
-      identifiers = [
-        "eks.amazonaws.com"
-      ]
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com"]
     }
   }
 }
@@ -91,11 +74,9 @@ data "aws_iam_policy_document" "eks_cluster_assume_role" {
 resource "aws_iam_role" "eks_cluster" {
   count = var.create_eks_cluster_role ? 1 : 0
 
-  name = local.eks_cluster_role_name
-
+  name               = local.eks_cluster_role_name
+  description        = "EKS control plane role for ${var.name_prefix}-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.eks_cluster_assume_role.json
-
-  description = "EKS control plane role for ${var.name_prefix}-${var.environment}"
 
   tags = local.common_tags
 
@@ -107,8 +88,7 @@ resource "aws_iam_role" "eks_cluster" {
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   count = var.create_eks_cluster_role ? 1 : 0
 
-  role = aws_iam_role.eks_cluster[0].name
-
+  role       = aws_iam_role.eks_cluster[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
@@ -118,19 +98,13 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 
 data "aws_iam_policy_document" "eks_node_assume_role" {
   statement {
-    sid    = "EKSNodeAssumeRole"
-    effect = "Allow"
-
-    actions = [
-      "sts:AssumeRole"
-    ]
+    sid     = "EKSNodeAssumeRole"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
 
     principals {
-      type = "Service"
-
-      identifiers = [
-        "ec2.amazonaws.com"
-      ]
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
 }
@@ -138,11 +112,9 @@ data "aws_iam_policy_document" "eks_node_assume_role" {
 resource "aws_iam_role" "eks_node" {
   count = var.create_eks_node_role ? 1 : 0
 
-  name = local.eks_node_role_name
-
+  name               = local.eks_node_role_name
+  description        = "EKS managed node group role for ${var.name_prefix}-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.eks_node_assume_role.json
-
-  description = "EKS managed node group role for ${var.name_prefix}-${var.environment}"
 
   tags = local.common_tags
 
@@ -151,38 +123,35 @@ resource "aws_iam_role" "eks_node" {
   }
 }
 
-# ------------------------------------------------------------
-# EKS Worker Node Policy
-# ------------------------------------------------------------
+# ============================================================
+# EKS WORKER NODE POLICY
+# ============================================================
 
 resource "aws_iam_role_policy_attachment" "eks_worker_node" {
   count = var.create_eks_node_role ? 1 : 0
 
-  role = aws_iam_role.eks_node[0].name
-
+  role       = aws_iam_role.eks_node[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
-# ------------------------------------------------------------
-# EKS VPC CNI Policy
-# ------------------------------------------------------------
+# ============================================================
+# EKS VPC CNI POLICY
+# ============================================================
 
 resource "aws_iam_role_policy_attachment" "eks_cni" {
   count = var.create_eks_node_role ? 1 : 0
 
-  role = aws_iam_role.eks_node[0].name
-
+  role       = aws_iam_role.eks_node[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
-# ------------------------------------------------------------
-# ECR Pull Policy
-# ------------------------------------------------------------
+# ============================================================
+# ECR PULL POLICY
+# ============================================================
 
 resource "aws_iam_role_policy_attachment" "ecr_pull" {
   count = var.create_eks_node_role ? 1 : 0
 
-  role = aws_iam_role.eks_node[0].name
-
+  role       = aws_iam_role.eks_node[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
 }

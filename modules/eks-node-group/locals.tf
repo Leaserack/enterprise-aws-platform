@@ -1,5 +1,5 @@
 locals {
-  node_group_name = "${var.name_prefix}-${var.environment}-${var.node_group_name}"
+  node_group_name = "${var.name_prefix}-${var.node_group_name}"
 
   common_tags = merge(
     {
@@ -7,7 +7,6 @@ locals {
       Environment = var.environment
       ManagedBy   = "Terraform"
       Component   = "eks-node-group"
-      NodeGroup   = local.node_group_name
     },
     var.tags
   )
