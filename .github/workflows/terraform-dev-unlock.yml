@@ -1,0 +1,76 @@
+name: Enterprise Platform DEV - Unlock Terraform State
+
+on:
+  workflow_dispatch:
+    inputs:
+      lock_id:
+        description: "Terraform lock ID"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "381549359906"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  terraform-unlock:
+    name: Unlock DEV Terraform State
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: environments/dev
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Configure Git authentication
+        shell: bash
+        run: |
+          git config --global \
+            url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf \
+            "https://github.com/"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: arn:aws:iam::381549359906:role/GitHubActionsTerraformRole
+          aws-region: us-east-1
+          allowed-account-ids: 381549359906
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -upgrade=false
+
+      - name: Force unlock Terraform state
+        shell: bash
+        env:
+          LOCK_ID: ${{ inputs.lock_id }}
+        run: |
+          echo "Unlocking Terraform state..."
+          echo "Lock ID: ${LOCK_ID}"
+
+          terraform force-unlock \
+            -force \
+            "${LOCK_ID}"
+
+          echo "Terraform state unlock completed."
