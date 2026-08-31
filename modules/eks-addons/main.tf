@@ -1,15 +1,6 @@
-locals {
-  common_tags = merge(
-    {
-      Project     = var.project_name
-      Environment = var.environment
-      ManagedBy   = "Terraform"
-      Component   = "eks-addons"
-      Cluster     = var.cluster_name
-    },
-    var.tags
-  )
-}
+# ============================================================
+# VPC CNI
+# ============================================================
 
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name = var.cluster_name
@@ -29,6 +20,10 @@ resource "aws_eks_addon" "vpc_cni" {
   tags = local.common_tags
 }
 
+# ============================================================
+# CoreDNS
+# ============================================================
+
 resource "aws_eks_addon" "coredns" {
   cluster_name = var.cluster_name
   addon_name   = "coredns"
@@ -45,7 +40,15 @@ resource "aws_eks_addon" "coredns" {
   )
 
   tags = local.common_tags
+
+  depends_on = [
+    aws_eks_addon.vpc_cni
+  ]
 }
+
+# ============================================================
+# KUBE PROXY
+# ============================================================
 
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name = var.cluster_name
@@ -63,11 +66,17 @@ resource "aws_eks_addon" "kube_proxy" {
   )
 
   tags = local.common_tags
+
+  depends_on = [
+    aws_eks_addon.vpc_cni
+  ]
 }
 
-resource "aws_eks_addon" "ebs_csi" {
-  count = var.enable_ebs_csi ? 1 : 0
+# ============================================================
+# EBS CSI
+# ============================================================
 
+resource "aws_eks_addon" "ebs_csi" {
   cluster_name = var.cluster_name
   addon_name   = "aws-ebs-csi-driver"
 
@@ -83,4 +92,8 @@ resource "aws_eks_addon" "ebs_csi" {
   )
 
   tags = local.common_tags
+
+  depends_on = [
+    aws_eks_addon.coredns
+  ]
 }
