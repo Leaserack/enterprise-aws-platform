@@ -46,12 +46,8 @@ resource "aws_eks_node_group" "this" {
   labels = var.labels
 
   # ----------------------------------------------------------
-  # Tags
+  # AWS tags
   # ----------------------------------------------------------
 
   tags = local.common_tags
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }

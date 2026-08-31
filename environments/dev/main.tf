@@ -143,16 +143,6 @@ module "eks" {
   cluster_role_arn = module.iam.eks_cluster_role_arn
   node_role_arn    = module.iam.eks_node_role_arn
 
-  access_entries = {
-    nodes = {
-      principal_arn     = module.iam.eks_node_role_arn
-      type              = "EC2_LINUX"
-      kubernetes_groups = ["system:nodes"]
-      username          = "system:node:{{EC2PrivateDNSName}}"
-    }
-  }
-
-
   cluster_encryption_key_arn = module.kms.key_arn
 
   # ==========================================================
@@ -253,9 +243,9 @@ module "eks_node_group" {
 
   subnet_ids = module.vpc.private_subnet_ids
 
-  # ==========================================================
-  # NODE CONFIGURATION
-  # ==========================================================
+  # ----------------------------------------------------------
+  # Node configuration
+  # ----------------------------------------------------------
 
   ami_type       = "AL2023_x86_64_STANDARD"
   capacity_type  = "ON_DEMAND"
@@ -263,23 +253,23 @@ module "eks_node_group" {
 
   disk_size = 50
 
-  # ==========================================================
-  # SCALING
-  # ==========================================================
+  # ----------------------------------------------------------
+  # Scaling
+  # ----------------------------------------------------------
 
   min_size     = 3
   desired_size = 3
   max_size     = 6
 
-  # ==========================================================
-  # ROLLING UPDATE
-  # ==========================================================
+  # ----------------------------------------------------------
+  # Rolling update
+  # ----------------------------------------------------------
 
   update_max_unavailable = 1
 
-  # ==========================================================
-  # NODE LABELS
-  # ==========================================================
+  # ----------------------------------------------------------
+  # Kubernetes labels
+  # ----------------------------------------------------------
 
   labels = {
     "platform.lr-saas.io/node-group" = "system"
@@ -288,21 +278,7 @@ module "eks_node_group" {
 
   tags = local.common_tags
 
-  # ==========================================================
-  # CRITICAL DEPENDENCIES
-  #
-  # 1. VPC must exist.
-  # 2. IAM node role must exist.
-  # 3. EKS cluster must exist.
-  # 4. Networking add-ons must exist.
-  #
-  # No application is required.
-  # ==========================================================
-
   depends_on = [
-    module.vpc,
-    module.iam,
-    module.eks,
-    module.eks_addons
+    module.eks
   ]
 }
