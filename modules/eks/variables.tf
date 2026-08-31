@@ -1,15 +1,18 @@
 variable "project_name" {
-  description = "Project name used for naming and tagging."
+  description = "Project name."
   type        = string
-  default     = "lr-saas"
 }
 
 variable "environment" {
-  description = "Deployment environment."
+  description = "Environment name."
   type        = string
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
+    condition = contains(
+      ["dev", "staging", "prod"],
+      var.environment
+    )
+
     error_message = "Environment must be dev, staging, or prod."
   }
 }
@@ -24,65 +27,65 @@ variable "kubernetes_version" {
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9]+\\.[0-9]+$", var.kubernetes_version))
-    error_message = "kubernetes_version must use the format MAJOR.MINOR, for example 1.33."
+    condition = can(
+      regex(
+        "^[0-9]+\\.[0-9]+$",
+        var.kubernetes_version
+      )
+    )
+
+    error_message = "kubernetes_version must use MAJOR.MINOR format."
   }
 }
 
 variable "vpc_id" {
-  description = "VPC ID for the EKS cluster."
+  description = "VPC ID."
   type        = string
 }
 
 variable "private_subnet_ids" {
-  description = "Private subnet IDs used by the EKS cluster and node groups."
+  description = "Private subnets used by EKS."
   type        = list(string)
 
   validation {
-    condition     = length(var.private_subnet_ids) >= 2
-    error_message = "At least two private subnets are required for EKS."
+    condition = length(var.private_subnet_ids) >= 2
+
+    error_message = "At least two private subnets are required."
   }
 }
 
 variable "cluster_role_arn" {
-  description = "IAM role ARN assumed by the EKS control plane."
+  description = "EKS control plane IAM role ARN."
   type        = string
 }
 
 variable "node_role_arn" {
-  description = "IAM role ARN assumed by EKS managed nodes."
+  description = "EKS node IAM role ARN. Kept as an input for module compatibility."
   type        = string
 }
 
 variable "cluster_security_group_id" {
-  description = "Optional existing security group for the EKS cluster."
+  description = "Optional existing EKS cluster security group."
   type        = string
   default     = null
 }
 
 variable "endpoint_private_access" {
-  description = "Enable private EKS API endpoint access."
+  description = "Enable private EKS API endpoint."
   type        = bool
   default     = true
 }
 
 variable "endpoint_public_access" {
-  description = "Enable public EKS API endpoint access."
+  description = "Enable public EKS API endpoint."
   type        = bool
   default     = false
 }
 
 variable "public_access_cidrs" {
-  description = "CIDR ranges allowed to access the public EKS API endpoint."
+  description = "Allowed CIDRs for public EKS endpoint."
   type        = list(string)
   default     = []
-
-  validation {
-    condition = alltrue([
-      for cidr in var.public_access_cidrs : can(cidrhost(cidr, 0))
-    ])
-    error_message = "Every public_access_cidrs value must be a valid CIDR."
-  }
 }
 
 variable "authentication_mode" {
@@ -127,7 +130,7 @@ variable "enabled_cluster_log_types" {
       )
     ])
 
-    error_message = "Invalid EKS cluster log type."
+    error_message = "Invalid EKS control-plane log type."
   }
 }
 
@@ -136,40 +139,8 @@ variable "cluster_encryption_key_arn" {
   type        = string
 }
 
-variable "access_entries" {
-  description = "IAM principals allowed to access the EKS cluster."
-  type = map(object({
-    principal_arn     = string
-    kubernetes_groups = optional(list(string), [])
-    type              = optional(string, "STANDARD")
-
-    policy_associations = optional(map(object({
-      policy_arn = string
-
-      access_scope = object({
-        type       = string
-        namespaces = optional(list(string), [])
-      })
-    })), {})
-  }))
-
-  default = {}
-}
-
-variable "addons" {
-  description = "EKS managed add-ons to install."
-  type = map(object({
-    addon_version               = optional(string)
-    resolve_conflicts_on_create = optional(string, "OVERWRITE")
-    resolve_conflicts_on_update = optional(string, "OVERWRITE")
-    service_account_role_arn    = optional(string)
-  }))
-
-  default = {}
-}
-
 variable "tags" {
-  description = "Additional resource tags."
+  description = "Additional EKS tags."
   type        = map(string)
   default     = {}
 }

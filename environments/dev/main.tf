@@ -57,9 +57,10 @@ module "kms" {
   tags = local.common_tags
 }
 
-
 # ============================================================
 # ECR
+#
+# This can exist now even though no application is deployed.
 # ============================================================
 
 module "ecr" {
@@ -76,10 +77,8 @@ module "ecr" {
   image_tag_mutability = "IMMUTABLE"
   scan_on_push         = true
 
-  # Do not delete repositories containing images.
   force_delete = false
 
-  # Image retention.
   untagged_image_expiration_days = 7
   tagged_image_retention_count   = 30
 
@@ -146,22 +145,22 @@ module "eks" {
 
   cluster_encryption_key_arn = module.kms.key_arn
 
-  # ----------------------------------------------------------
-  # Private EKS API
-  # ----------------------------------------------------------
+  # ==========================================================
+  # PRIVATE EKS API
+  # ==========================================================
 
   endpoint_private_access = true
   endpoint_public_access  = false
 
-  # ----------------------------------------------------------
-  # EKS authentication
-  # ----------------------------------------------------------
+  # ==========================================================
+  # EKS AUTHENTICATION
+  # ==========================================================
 
   authentication_mode = "API"
 
-  # ----------------------------------------------------------
-  # Control plane logging
-  # ----------------------------------------------------------
+  # ==========================================================
+  # CONTROL PLANE LOGGING
+  # ==========================================================
 
   enabled_cluster_log_types = [
     "api",
@@ -177,6 +176,51 @@ module "eks" {
     module.vpc,
     module.iam,
     module.kms
+  ]
+}
+
+# ============================================================
+# EKS MANAGED ADD-ONS
+#
+# IMPORTANT:
+#
+# These are created BEFORE the node group.
+#
+# The EKS cluster itself also installs the default networking
+# components during creation because bootstrap_self_managed_addons
+# is TRUE in the EKS module.
+#
+# Terraform then manages the add-ons through the EKS API.
+# ============================================================
+
+module "eks_addons" {
+  source = "../../modules/eks-addons"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  cluster_name    = module.eks.cluster_name
+  cluster_version = var.eks_kubernetes_version
+
+  # Let EKS select the compatible versions.
+  vpc_cni_version    = null
+  coredns_version    = null
+  kube_proxy_version = null
+
+  # Do not enable EBS CSI yet.
+  # There is no application/workload requirement for it.
+  enable_ebs_csi  = false
+  ebs_csi_version = null
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  service_account_role_arns = {}
+
+  tags = local.common_tags
+
+  depends_on = [
+    module.eks
   ]
 }
 
@@ -199,9 +243,9 @@ module "eks_node_group" {
 
   subnet_ids = module.vpc.private_subnet_ids
 
-  # ----------------------------------------------------------
-  # Node configuration
-  # ----------------------------------------------------------
+  # ==========================================================
+  # NODE CONFIGURATION
+  # ==========================================================
 
   ami_type       = "AL2023_x86_64_STANDARD"
   capacity_type  = "ON_DEMAND"
@@ -209,23 +253,23 @@ module "eks_node_group" {
 
   disk_size = 50
 
-  # ----------------------------------------------------------
-  # Scaling
-  # ----------------------------------------------------------
+  # ==========================================================
+  # SCALING
+  # ==========================================================
 
   min_size     = 3
   desired_size = 3
   max_size     = 6
 
-  # ----------------------------------------------------------
-  # Rolling update
-  # ----------------------------------------------------------
+  # ==========================================================
+  # ROLLING UPDATE
+  # ==========================================================
 
   update_max_unavailable = 1
 
-  # ----------------------------------------------------------
-  # System node labels
-  # ----------------------------------------------------------
+  # ==========================================================
+  # NODE LABELS
+  # ==========================================================
 
   labels = {
     "platform.lr-saas.io/node-group" = "system"
@@ -234,55 +278,21 @@ module "eks_node_group" {
 
   tags = local.common_tags
 
-  depends_on = [
-    module.eks
-  ]
-}
-
-# ============================================================
-# EKS MANAGED ADD-ONS
-# ============================================================
-
-module "eks_addons" {
-  source = "../../modules/eks-addons"
-
-  project_name = var.project_name
-  environment  = var.environment
-
-  cluster_name    = module.eks.cluster_name
-  cluster_version = var.eks_kubernetes_version
-
-  # ----------------------------------------------------------
-  # AWS-managed add-on versions
+  # ==========================================================
+  # CRITICAL DEPENDENCIES
   #
-  # null allows the compatible AWS default version.
-  # We will pin tested versions after the first successful
-  # cluster deployment.
-  # ----------------------------------------------------------
-
-  vpc_cni_version    = null
-  coredns_version    = null
-  kube_proxy_version = null
-  ebs_csi_version    = null
-
-  # ----------------------------------------------------------
-  # Conflict handling
-  # ----------------------------------------------------------
-
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
-
-  # ----------------------------------------------------------
-  # Dedicated add-on IAM roles will be added in the
-  # Pod Identity/IAM hardening phase.
-  # ----------------------------------------------------------
-
-  service_account_role_arns = {}
-
-  tags = local.common_tags
+  # 1. VPC must exist.
+  # 2. IAM node role must exist.
+  # 3. EKS cluster must exist.
+  # 4. Networking add-ons must exist.
+  #
+  # No application is required.
+  # ==========================================================
 
   depends_on = [
+    module.vpc,
+    module.iam,
     module.eks,
-    module.eks_node_group
+    module.eks_addons
   ]
 }

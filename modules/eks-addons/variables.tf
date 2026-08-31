@@ -1,17 +1,11 @@
 variable "project_name" {
-  description = "Project name used for tagging."
+  description = "Project name."
   type        = string
-  default     = "lr-saas"
 }
 
 variable "environment" {
-  description = "Deployment environment."
+  description = "Environment name."
   type        = string
-
-  validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "environment must be dev, staging, or prod."
-  }
 }
 
 variable "cluster_name" {
@@ -20,12 +14,12 @@ variable "cluster_name" {
 }
 
 variable "cluster_version" {
-  description = "EKS Kubernetes cluster version."
+  description = "EKS Kubernetes version."
   type        = string
 }
 
 variable "vpc_cni_version" {
-  description = "VPC CNI add-on version."
+  description = "VPC CNI add-on version. Null lets EKS choose a compatible version."
   type        = string
   default     = null
 }
@@ -43,45 +37,55 @@ variable "kube_proxy_version" {
 }
 
 variable "ebs_csi_version" {
-  description = "EBS CSI Driver add-on version."
+  description = "EBS CSI add-on version."
   type        = string
   default     = null
 }
 
+variable "enable_ebs_csi" {
+  description = "Enable the EBS CSI add-on."
+  type        = bool
+  default     = false
+}
+
 variable "resolve_conflicts_on_create" {
-  description = "Conflict resolution behavior when creating add-ons."
+  description = "Conflict resolution when creating an add-on."
   type        = string
   default     = "OVERWRITE"
 
   validation {
-    condition     = contains(["NONE", "OVERWRITE"], var.resolve_conflicts_on_create)
-    error_message = "resolve_conflicts_on_create must be NONE or OVERWRITE."
+    condition = contains(
+      ["NONE", "OVERWRITE", "PRESERVE"],
+      var.resolve_conflicts_on_create
+    )
+
+    error_message = "Invalid add-on create conflict resolution."
   }
 }
 
 variable "resolve_conflicts_on_update" {
-  description = "Conflict resolution behavior when updating add-ons."
+  description = "Conflict resolution when updating an add-on."
   type        = string
   default     = "OVERWRITE"
 
   validation {
-    condition     = contains(["NONE", "OVERWRITE", "PRESERVE"], var.resolve_conflicts_on_update)
-    error_message = "resolve_conflicts_on_update must be NONE, OVERWRITE, or PRESERVE."
+    condition = contains(
+      ["NONE", "OVERWRITE", "PRESERVE"],
+      var.resolve_conflicts_on_update
+    )
+
+    error_message = "Invalid add-on update conflict resolution."
   }
 }
 
 variable "service_account_role_arns" {
-  description = "IAM role ARNs for add-ons that require workload identity."
-  type = object({
-    vpc_cni = optional(string)
-    ebs_csi = optional(string)
-  })
-
-  default = {}
+  description = "Optional IAM roles for EKS add-ons."
+  type        = map(string)
+  default     = {}
 }
 
 variable "tags" {
-  description = "Additional EKS add-on tags."
+  description = "Additional tags."
   type        = map(string)
   default     = {}
 }

@@ -136,6 +136,10 @@ resource "aws_iam_role_policy_attachment" "eks_worker_node" {
 
 # ============================================================
 # EKS VPC CNI POLICY
+#
+# Kept on the node role for the current IPv4 design.
+# Later this can be moved to a dedicated Pod Identity role
+# for the VPC CNI add-on.
 # ============================================================
 
 resource "aws_iam_role_policy_attachment" "eks_cni" {
@@ -146,7 +150,10 @@ resource "aws_iam_role_policy_attachment" "eks_cni" {
 }
 
 # ============================================================
-# ECR PULL POLICY
+# ECR PULL-ONLY POLICY
+#
+# Not required for node registration itself, but appropriate
+# for future application workloads pulling from ECR.
 # ============================================================
 
 resource "aws_iam_role_policy_attachment" "ecr_pull" {
