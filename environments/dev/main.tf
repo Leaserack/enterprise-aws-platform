@@ -143,6 +143,16 @@ module "eks" {
   cluster_role_arn = module.iam.eks_cluster_role_arn
   node_role_arn    = module.iam.eks_node_role_arn
 
+  access_entries = {
+    nodes = {
+      principal_arn     = module.iam.eks_node_role_arn
+      type              = "EC2_LINUX"
+      kubernetes_groups = ["system:nodes"]
+      username          = "system:node:{{EC2PrivateDNSName}}"
+    }
+  }
+
+
   cluster_encryption_key_arn = module.kms.key_arn
 
   # ==========================================================
