@@ -29,11 +29,11 @@ output "kube_proxy_addon_version" {
 }
 
 output "ebs_csi_addon_arn" {
-  description = "EBS CSI Driver add-on ARN."
-  value       = aws_eks_addon.ebs_csi.arn
+  description = "EBS CSI add-on ARN."
+  value       = var.enable_ebs_csi ? aws_eks_addon.ebs_csi[0].arn : null
 }
 
 output "ebs_csi_addon_version" {
-  description = "Installed EBS CSI Driver version."
-  value       = aws_eks_addon.ebs_csi.addon_version
+  description = "EBS CSI add-on version."
+  value       = var.enable_ebs_csi ? aws_eks_addon.ebs_csi[0].addon_version : null
 }
