@@ -209,7 +209,7 @@ module "eks_addons" {
 
   # Do not enable EBS CSI yet.
   # There is no application/workload requirement for it.
-  enable_ebs_csi  = false
+  enable_ebs_csi  = true
   ebs_csi_version = null
 
   resolve_conflicts_on_create = "OVERWRITE"
