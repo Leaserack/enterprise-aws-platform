@@ -150,7 +150,8 @@ module "eks" {
   # ==========================================================
 
   endpoint_private_access = true
-  endpoint_public_access  = false
+  endpoint_public_access  = true
+  public_access_cidrs     = ["152.58.16.200/32"]
 
   # ==========================================================
   # EKS AUTHENTICATION
@@ -207,8 +208,9 @@ module "eks_addons" {
   coredns_version    = null
   kube_proxy_version = null
 
-  # Do not enable EBS CSI yet.
-  # There is no application/workload requirement for it.
+
+  # Enable EBS CSI for persistent EBS-backed Kubernetes volumes.
+
   enable_ebs_csi  = true
   ebs_csi_version = null
 
